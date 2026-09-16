@@ -33,7 +33,7 @@ jobs:
     Build:
         name: Build Equicord
         runs-on: ubuntu-latest
-        if: github.repository == 'BricksAreCool/mycord'
+        if: github.repository == 'bricksarecool/mycord'
 
         steps:
             - uses: actions/checkout@v6
