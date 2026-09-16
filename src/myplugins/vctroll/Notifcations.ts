@@ -6,4 +6,4 @@
 
 import { Toasts } from "@webpack/common";
 
-export const TimedoutReconnect = Toasts.create("Timedout Reconnect for 5 seconds!", "success", { duration: 5000 });
+export const TimedoutReconnect = Toasts.create("Timedout Reconnect for 5 seconds!", "success", { duration: 1000 });

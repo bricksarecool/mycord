@@ -494,8 +494,10 @@ function ShowModal() {
 
 export default definePlugin({
     name: "vc-troll",
-    description: "voice chat trolling plugin",
+    description:
+        "trolling friends with server mute/deafen and auto disconnect.",
     authors: [Devs.Sans],
+    tags: ["Fun", "Friends"],
     settings,
 
     flux: {
@@ -626,10 +628,9 @@ export default definePlugin({
                         return;
                     }
 
-                    if (lastdisconnectMS === undefined)
+                    if (lastdisconnectMS === undefined) {
                         lastdisconnectMS = Date.now();
-
-                    if (Date.now() - lastdisconnectMS < 1500) {
+                    } else if (Date.now() - lastdisconnectMS < 1500) {
                         lastdisconnectMS = Date.now();
 
                         if (Reconnect === true) {
