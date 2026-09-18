@@ -7,7 +7,7 @@ on:
 env:
     FORCE_COLOR: true
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
+
 permissions:
     contents: write
 
@@ -68,5 +68,36 @@ jobs:
             - name: Upload Equicord Stable
               if: ${{ vars.ACT == 'false' }}
               run: |
-                  gh release create latest --latest=false
+                  set -euo pipefail
+
+                  # Only run on tag refs
+                  if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+                  echo "Not a tag ref (${GITHUB_REF_TYPE}), skipping release upload."
+                  exit 0
+                  fi
+
+                  TAG="${GITHUB_REF_NAME}"
+                  echo "Verifying tag '${TAG}' exists..."
+
+                  # Verify the tag exists on the remote
+                  if ! git ls-remote --tags --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+                  echo "::error::Tag '${TAG}' does not exist on origin. Aborting."
+                  exit 1
+                  fi
+
+                  # Verify the tag matches the current commit (guards against moved/rebuilt tags)
+                  LOCAL_SHA="$(git rev-parse HEAD)"
+                  TAG_SHA="$(git rev-parse "refs/tags/${TAG}^{commit}")"
+                  if [[ "${LOCAL_SHA}" != "${TAG_SHA}" ]]; then
+                  echo "::error::Tag '${TAG}' (${TAG_SHA}) does not match HEAD (${LOCAL_SHA})."
+                  exit 1
+                  fi
+
+                  echo "Tag '${TAG}' verified. Uploading to 'latest' release..."
+
+                  # Create the release if it doesn't already exist
+                  if ! gh release view latest >/dev/null 2>&1; then
+                  gh release create latest --latest=false --title "Equicord Stable" --notes "Built from ${TAG}"
+                  fi
+
                   gh release upload latest --clobber dist/release/*
