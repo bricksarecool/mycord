@@ -493,7 +493,7 @@ function ShowModal() {
 }
 
 export default definePlugin({
-    name: "vc-troll",
+    name: "VoiceChatTrollTools",
     description:
         "trolling friends with server mute/deafen and auto disconnect.",
     authors: [Devs.Sans],
