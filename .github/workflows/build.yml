@@ -69,35 +69,53 @@ jobs:
               if: ${{ vars.ACT == 'false' }}
               run: |
                   set -euo pipefail
+                  # Always refresh tags in case the runner cached an old clone
+                  git fetch --tags --force origin
 
-                  # Only run on tag refs
-                  if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
-                    echo "Not a tag ref (${GITHUB_REF_TYPE}), skipping release upload."
-                    exit 0
+                  # 1. Build today's date prefix (UTC, e.g. 2026-09-18)
+                  DATE="$(date -u +%Y-%m-%d)"
+                  echo "Date prefix: ${DATE}"
+
+                  # 2. Find the highest existing <DATE>-<n> tag
+                  LAST_N="$(
+                  git tag --list "${DATE}-*" \
+                      | sed -E "s/^${DATE}-([0-9]+)$/\1/" \
+                      | grep -E '^[0-9]+$' \
+                      | sort -n \
+                      | tail -n1 \
+                  || true
+                  )"
+                  NEXT_N=$(( ${LAST_N:-0} + 1 ))
+                  TAG="${DATE}-${NEXT_N}"
+                  echo "Next tag: ${TAG}"
+
+                  # 3. Make sure it doesn't already exist (belt and braces)
+                  if git rev-parse --verify --quiet "refs/tags/${TAG}" >/dev/null; then
+                  echo "::error::Tag '${TAG}' already exists locally."
+                  exit 1
+                  fi
+                  if git ls-remote --tags --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+                  echo "::error::Tag '${TAG}' already exists on origin."
+                  exit 1
                   fi
 
-                  TAG="${GITHUB_REF_NAME}"
-                  echo "Verifying tag '${TAG}' exists..."
+                  # 4. Create and push the tag
+                  git config user.name  "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+                  git tag -a "${TAG}" -m "Equicord Stable ${TAG}"
+                  git push origin "refs/tags/${TAG}"
+                  echo "Pushed tag ${TAG}."
 
-                  # Verify the tag exists on the remote
-                  if ! git ls-remote --tags --exit-code origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-                    echo "::error::Tag '${TAG}' does not exist on origin. Aborting."
-                    exit 1
-                  fi
-
-                  # Verify the tag matches the current commit (guards against moved/rebuilt tags)
-                  LOCAL_SHA="$(git rev-parse HEAD)"
-                  TAG_SHA="$(git rev-parse "refs/tags/${TAG}^{commit}")"
-                  if [[ "${LOCAL_SHA}" != "${TAG_SHA}" ]]; then
-                    echo "::error::Tag '${TAG}' (${TAG_SHA}) does not match HEAD (${LOCAL_SHA})."
-                    exit 1
-                  fi
-
-                  echo "Tag '${TAG}' verified. Uploading to 'latest' release..."
-
-                  # Create the release if it doesn't already exist
+                  # 5. Publish / update the floating 'latest' release
                   if ! gh release view latest >/dev/null 2>&1; then
-                    gh release create latest --latest=false --title "Equicord Stable" --notes "Built from ${TAG}"
+                  gh release create latest \
+                      --latest=false \
+                      --title "Equicord Stable" \
+                      --notes "Last built from tag ${TAG} ($(git rev-parse --short HEAD))"
+                  else
+                  gh release edit latest \
+                      --notes "Last built from tag ${TAG} ($(git rev-parse --short HEAD))"
                   fi
 
                   gh release upload latest --clobber dist/release/*
+                  echo "Uploaded assets to 'latest' release."
